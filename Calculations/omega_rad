@@ -1,0 +1,94 @@
+close;clear;clc;
+
+% ------ Constants ------ %
+w = 10;             % Angular velocity
+global xml
+% Ice variables
+xml.s.ice.desc = 'Struct that contains the variables of the ice';
+xml.s.ice.r0 = 0.5;       % Initial position of the ice       -       [m]
+xml.s.ice.m = 10;         % Mass of the ice                   -       [Kg]
+xml.s.ice.pos = xml.s.ice.r0;   % Position of the ice               -       [m]
+xml.s.ice.vel = 0;        % Linear Velocity                   -       [m/s]
+xml.s.ice.ang = 0;        % Angle of the ice                  -       [rad]
+xml.s.ice.angvel = w;     % Angular velocity                  -       [rad/s]
+
+% Arm variables
+xml.s.arm.desc = 'Struct that contains the variables of the disk';
+xml.s.arm.rad = 10;       % Radius of the arm                 -       [m]
+xml.s.arm.h = 2;          % Height of the arm                 -       [m]
+xml.s.arm.w = 1;          % Width of the arm                  -       [m]
+xml.s.arm.rho = 2700;     % Density of the arm                -       [kg/m^3]
+xml.s.arm.m = xml.s.arm.rho*xml.s.arm.h*xml.s.arm.w*xml.s.arm.rad;
+                    % Mass of the arm                   -       [Kg]
+xml.s.arm.angvel = w;     % Angular velocity                  -       [rad/s]
+xml.s.arm.J = 1/3*xml.s.arm.m*xml.s.arm.rad^3;
+                    % Moment of inertia                 -       [m^2*kg]
+% System Variables
+xml.s.syst.torq = 10000;  % Torque applied to arm             -       [M*m]
+xml.s.syst.vtarg = 2333;  % Target velocity                   -       [m/s]
+xml.s.syst.fric = 0;      % Friction coefficient              
+            
+%% Equations
+tspan = [0,4];
+s10 = [xml.s.ice.r0 0 0 xml.s.ice.angvel];
+s20 = [0 0];
+opts = odeset('MaxStep',0.01);
+diff = 1;
+sol2 = ode45(@drivearm,tspan,s20,opts);
+xml.s.arm.ang = sol2.y(1,:)';
+xml.s.arm.angvel = sol2.y(2,:)';
+xml.s.arm.time = sol2.x';
+rad = xml.s.arm.rad;
+while abs(diff) >= 0.1
+xml.s.arm.rad = rad;
+xml.s.arm.J = 1/3*xml.s.arm.m*xml.s.arm.rad^3;
+sol1 = ode45(@moveice,tspan,s10,opts);
+xml.s.ice.pos = sol1.y(1,:)';
+xml.s.ice.ang = sol1.y(2,:)';
+xml.s.ice.vel = sol1.y(3,:)';
+xml.s.ice.angvel = sol1.y(4,:)';
+xml.s.ice.time = sol1.x';
+for i=1:length(xml.s.ice.vel)
+   if  xml.s.ice.vel(i)>=xml.s.syst.vtarg
+       t=i;
+       break;
+   end
+end
+rad = xml.s.ice.pos(t);
+diff = xml.s.arm.rad - xml.s.ice.pos(t);
+end
+
+% Plots
+figure
+subplot(2,2,1)
+plot(xml.s.ice.time,xml.s.ice.pos);
+grid on;
+hold on;
+xlabel('Time [s]')
+ylabel('Position [m]')
+
+subplot(2,2,2)
+plot(xml.s.ice.time,xml.s.ice.ang*180/pi);
+grid on;
+hold on;
+ylabel('theta [deg]');
+xlabel('time');
+
+subplot(2,2,3)
+plot(xml.s.ice.time,xml.s.ice.vel);
+grid on;
+hold on;
+ylabel('velocity [m/s]');
+xlabel('time');
+
+subplot(2,2,4)
+plot(xml.s.ice.time,xml.s.ice.angvel);
+grid on;
+hold on;
+ylabel('Anguar Velocity [rad/s]');
+xlabel('time');
+
+figure
+plot(xml.s.ice.pos,xml.s.ice.vel)
+xlabel('Position [x]')
+ylabel('Velocity [m/s]')
